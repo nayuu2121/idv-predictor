@@ -65,6 +65,21 @@ def predict_hunter_stats(ban_ids):
     
     return results, total_count
 
+# --- 機能: ハンター別BANランキング集計 (統計ページ用) ---
+def get_stats_by_hunter(hunter_id):
+    db = get_db()
+    query = '''
+        SELECT s.display_name, COUNT(bb.survivor_id) as count
+        FROM battle_records br
+        JOIN battle_bans bb ON br.id = bb.battle_id
+        JOIN m_survivors s ON bb.survivor_id = s.id
+        WHERE br.hunter_id = ?
+        GROUP BY s.id, s.display_name
+        ORDER BY count DESC
+        LIMIT 10
+    '''
+    return db.execute(query, (hunter_id,)).fetchall()
+
 # --- 機能: データ登録 (変更なし) ---
 def register_battle_result(ban_ids, hunter_id):
     db = get_db()
@@ -151,6 +166,21 @@ def index():
                            total_samples=total_samples,
                            selected=selected_bans,
                            message=message)
+
+# --- ルーティング: 統計ページ ---
+@app.route('/stats')
+def stats():
+    db = get_db()
+    hunter_id = request.args.get('hunter_id')
+    stats_data = []
+    current_hunter = None
+    
+    if hunter_id:
+        stats_data = get_stats_by_hunter(hunter_id)
+        current_hunter = db.execute('SELECT display_name FROM m_hunters WHERE id = ?', (hunter_id,)).fetchone()
+
+    hunters = db.execute('SELECT id, display_name FROM m_hunters ORDER BY id').fetchall()
+    return render_template('stats.html', hunters=hunters, stats_data=stats_data, current_hunter=current_hunter)
 
 # --- ルーティング: 管理者ログイン ---
 @app.route('/admin', methods=['GET', 'POST'])
