@@ -18,7 +18,11 @@
 <body>
     <div class="container">
         <h1>📩 ユーザーコメント一覧</h1>
-        
+        <div style="background-color: #333; padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center;">
+            <span style="color: #e0e0e0; font-size: 1.2rem;">現在の総訪問回数: </span>
+            <strong style="color: #64b5f6; font-size: 1.5rem;">{{ access_count }}</strong>
+            <span style="color: #e0e0e0;"> 回</span>
+        </div>
         {% if feedbacks %}
             <table>
                 <tr>

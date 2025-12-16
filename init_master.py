@@ -49,6 +49,13 @@ cursor.executescript('''
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+                     
+    CREATE TABLE IF NOT EXISTS access_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address TEXT,
+        user_agent TEXT
+    );
 ''')
 
 # --- 2. マスタデータの挿入 (データが空の場合のみ実行) ---
