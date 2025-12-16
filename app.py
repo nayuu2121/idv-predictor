@@ -157,7 +157,7 @@ def index():
 def admin_login():
     if request.method == 'POST':
         password = request.form.get('password')
-        if password == ADMIN_PASSWORD:
+        if password == "watashiha":
             # 認証成功したらコメント一覧へリダイレクト
             return redirect(url_for('view_feedbacks'))
         else:
