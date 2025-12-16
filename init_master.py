@@ -7,9 +7,9 @@ DB_PATH = os.path.join(BASE_DIR, 'idv_master.db')
 connection = sqlite3.connect(DB_PATH)
 cursor = connection.cursor()
 
-# --- 1. テーブルの作成 (初回起動時のみ) ---
+# --- 1. テーブルの作成 (初回起動時のみ実行) ---
 cursor.executescript('''
-    -- サバイバーマスタ (IF NOT EXISTS を追加)
+    -- サバイバーマスタ
     CREATE TABLE IF NOT EXISTS m_survivors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -86,7 +86,8 @@ if cursor.fetchone()[0] == 0:
 
     # データの挿入
     cursor.executemany('INSERT INTO m_survivors (name, display_name) VALUES (?, ?)', survivors_data)
-    cursor.executemany('INSERT INTO m_hunters (name, display_name) VALUES (?, (?, ?)', hunters_data)
+    # NOTE: ハンターデータの挿入時にカラム数エラーが出る可能性があるため、修正
+    cursor.executemany('INSERT INTO m_hunters (name, display_name) VALUES (?, ?)', [(name, display_name) for name, display_name in hunters_data])
 
     print(f"マスタデータ（サバイバー:{len(survivors_data)}体, ハンター:{len(hunters_data)}体）の作成完了！")
 else:

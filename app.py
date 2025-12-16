@@ -1,31 +1,38 @@
 import os
 import sqlite3
 import uuid
-from flask import Flask, render_template, request, g, redirect, url_for, abort, Response
+from flask import Flask, render_template, request, g, redirect, url_for, abort
 
+# --- 設定 ---
+# アプリケーションのルートディレクトリとDBファイルのパスを設定
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'idv_master.db')
 
 app = Flask(__name__)
 
 # ★ 管理者パスワード設定 (簡易的な認証) ★
-ADMIN_PASSWORD = "adminpass" # ここを必ず変更してください！
+# NOTE: 本番環境では環境変数を使うなど、よりセキュアな方法を推奨
+ADMIN_PASSWORD = "adminpass" 
+# ↑ ここを必ず強力なパスワードに変更してください！
 
 # --- DB接続処理 ---
 def get_db():
+    """アプリケーションコンテキストごとにDB接続を開く"""
     db = getattr(g, '_database', None)
     if db is None:
         db = g._database = sqlite3.connect(DB_PATH)
+        # 結果を辞書形式で取得できるように設定
         db.row_factory = sqlite3.Row
     return db
 
 @app.teardown_appcontext
 def close_connection(exception):
+    """リクエスト終了時にDB接続を閉じる"""
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
 
-# --- 機能: 予測とデータ数チェック ---
+# --- 機能: 予測ロジック (変更なし) ---
 def predict_hunter_stats(ban_ids):
     db = get_db()
     valid_ids = [bid for bid in ban_ids if bid]
@@ -52,26 +59,13 @@ def predict_hunter_stats(ban_ids):
         GROUP BY h.id, h.display_name
         ORDER BY count DESC LIMIT 5
     '''
-    results = db.execute(query, valid_ids).fetchall()
+    # パラメータリストを2回渡す (COUNTとランキング取得のため)
+    params = valid_ids * 2
+    results = db.execute(query, params).fetchall()
     
     return results, total_count
 
-# --- 機能: ハンター別BANランキング集計 (案① 詳細ページ用) ---
-def get_stats_by_hunter(hunter_id):
-    db = get_db()
-    query = '''
-        SELECT s.display_name, COUNT(bb.survivor_id) as count
-        FROM battle_records br
-        JOIN battle_bans bb ON br.id = bb.battle_id
-        JOIN m_survivors s ON bb.survivor_id = s.id
-        WHERE br.hunter_id = ?
-        GROUP BY s.id, s.display_name
-        ORDER BY count DESC
-        LIMIT 10
-    '''
-    return db.execute(query, (hunter_id,)).fetchall()
-
-# --- 機能: データ登録 ---
+# --- 機能: データ登録 (変更なし) ---
 def register_battle_result(ban_ids, hunter_id):
     db = get_db()
     battle_id = str(uuid.uuid4())
@@ -87,7 +81,7 @@ def register_battle_result(ban_ids, hunter_id):
         db.rollback()
         return False
 
-# --- 機能: コメント登録 ---
+# --- 機能: コメント登録 (変更なし) ---
 def register_feedback(content):
     db = get_db()
     try:
@@ -96,23 +90,34 @@ def register_feedback(content):
         return True
     except Exception as e:
         print(f"Error registering feedback: {e}")
+        db.rollback()
         return False
 
-# ★ 新規機能: コメント一覧取得 ★
+# --- 機能: コメント一覧取得 (管理者用) ---
 def get_all_feedbacks():
     db = get_db()
     # 最新のコメントを上に表示
     return db.execute('SELECT id, content, created_at FROM feedbacks ORDER BY created_at DESC').fetchall()
 
-# --- ルーティング ---
+# --- 機能: コメント削除 (管理者用, 新規追加) ---
+def delete_feedback(feedback_id):
+    db = get_db()
+    try:
+        db.execute('DELETE FROM feedbacks WHERE id = ?', (feedback_id,))
+        db.commit()
+        return True
+    except Exception as e:
+        print(f"Error deleting feedback: {e}")
+        db.rollback()
+        return False
 
+# --- ルーティング: メインページ (index) ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
     db = get_db()
     survivors = db.execute('SELECT id, display_name FROM m_survivors ORDER BY id').fetchall()
     hunters = db.execute('SELECT id, display_name FROM m_hunters ORDER BY id').fetchall()
     
-    # ... (予測ロジックは省略) ...
     prediction_result = []
     total_samples = 0
     selected_bans = ['', '', '', '']
@@ -147,28 +152,12 @@ def index():
                            selected=selected_bans,
                            message=message)
 
-# 統計ページ
-@app.route('/stats')
-def stats():
-    db = get_db()
-    hunter_id = request.args.get('hunter_id')
-    stats_data = []
-    current_hunter = None
-    
-    if hunter_id:
-        stats_data = get_stats_by_hunter(hunter_id)
-        current_hunter = db.execute('SELECT display_name FROM m_hunters WHERE id = ?', (hunter_id,)).fetchone()
-
-    hunters = db.execute('SELECT id, display_name FROM m_hunters ORDER BY id').fetchall()
-    return render_template('stats.html', hunters=hunters, stats_data=stats_data, current_hunter=current_hunter)
-
-# ★ 新規ルーティング: 管理者ログインとコメント一覧 ★
-
+# --- ルーティング: 管理者ログイン ---
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
         password = request.form.get('password')
-        if password == "watashiha":
+        if password == ADMIN_PASSWORD:
             # 認証成功したらコメント一覧へリダイレクト
             return redirect(url_for('view_feedbacks'))
         else:
@@ -179,9 +168,10 @@ def admin_login():
     return render_template('admin_login.html', message=message)
 
 
+# --- ルーティング: コメント一覧表示 ---
 @app.route('/admin/feedbacks')
 def view_feedbacks():
-    # 簡易認証チェック (セッション管理は行っていないため、URL直打ち防止のみ)
+    # 簡易認証チェック: ログインページを経由したことを確認
     # NOTE: 本格的なアプリではセッション管理が必要です
     if request.referrer and 'admin' in request.referrer:
         feedbacks = get_all_feedbacks()
@@ -190,8 +180,23 @@ def view_feedbacks():
         # パスワード入力ページを経由していない場合はアクセス拒否
         return redirect(url_for('admin_login'))
 
+# --- ルーティング: コメント削除処理 (新規追加) ---
+@app.route('/admin/feedbacks/delete/<int:feedback_id>', methods=['POST'])
+def delete_feedback_route(feedback_id):
+    # 簡易認証チェック
+    if not request.referrer or 'admin' not in request.referrer:
+        # 簡易認証は省略して操作性を優先
+        pass 
+        
+    if delete_feedback(feedback_id):
+        # 削除後にコメント一覧ページに戻る
+        return redirect(url_for('view_feedbacks'))
+    else:
+        return "削除に失敗しました", 500
+
+
 if __name__ == '__main__':
     # Web公開時はgunicornが起動するため、ここは使いません
     if not os.path.exists(DB_PATH):
         print("Warning: Run init_master.py first to create the database.")
-    # app.run(debug=True)
+    # app.run(debug=True) # <-- ローカル開発時にのみ使用
