@@ -160,4 +160,4 @@ def stats():
 if __name__ == '__main__':
     if not os.path.exists(DB_PATH):
         print("Warning: Run init_master.py first to create the database.")
-    app.run(debug=True)
+        pass
