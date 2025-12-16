@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ユーザーコメント一覧</title>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { color: #64b5f6; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #1e1e1e; }
+        th, td { padding: 12px; border: 1px solid #333; text-align: left; vertical-align: top; }
+        th { background-color: #333; color: #64b5f6; }
+        .content { white-space: pre-wrap; word-wrap: break-word; }
+        .back-link { display: block; margin-top: 30px; color: #757575; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📩 ユーザーコメント一覧</h1>
+        
+        {% if feedbacks %}
+            <table>
+                <tr>
+                    <th>ID</th>
+                    <th>投稿日時</th>
+                    <th>コメント内容</th>
+                </tr>
+                {% for feedback in feedbacks %}
+                <tr>
+                    <td>{{ feedback.id }}</td>
+                    <td>{{ feedback.created_at }}</td>
+                    <td class="content">{{ feedback.content }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p>まだコメントは届いていません。</p>
+        {% endif %}
+
+        <a href="{{ url_for('index') }}" class="back-link">← メインページに戻る</a>
+    </div>
+</body>
+</html>

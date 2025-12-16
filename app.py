@@ -1,12 +1,15 @@
 import os
 import sqlite3
 import uuid
-from flask import Flask, render_template, request, g, redirect, url_for
+from flask import Flask, render_template, request, g, redirect, url_for, abort, Response
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'idv_master.db')
 
 app = Flask(__name__)
+
+# ★ 管理者パスワード設定 (簡易的な認証) ★
+ADMIN_PASSWORD = "adminpass" # ここを必ず変更してください！
 
 # --- DB接続処理 ---
 def get_db():
@@ -22,7 +25,7 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
-# --- 機能: 予測とデータ数チェック (案③) ---
+# --- 機能: 予測とデータ数チェック ---
 def predict_hunter_stats(ban_ids):
     db = get_db()
     valid_ids = [bid for bid in ban_ids if bid]
@@ -30,7 +33,7 @@ def predict_hunter_stats(ban_ids):
 
     placeholders = ','.join(['?'] * len(valid_ids))
     
-    # 総データ数チェック（案③）
+    # 総データ数チェック
     count_query = f'''
         SELECT COUNT(DISTINCT br.id) as total
         FROM battle_records br
@@ -54,11 +57,6 @@ def predict_hunter_stats(ban_ids):
     return results, total_count
 
 # --- 機能: ハンター別BANランキング集計 (案① 詳細ページ用) ---
-def get_hunter_ban_ranking():
-    db = get_db()
-    hunters = db.execute('SELECT id, display_name FROM m_hunters ORDER BY id').fetchall()
-    return hunters
-
 def get_stats_by_hunter(hunter_id):
     db = get_db()
     query = '''
@@ -89,7 +87,7 @@ def register_battle_result(ban_ids, hunter_id):
         db.rollback()
         return False
 
-# --- 機能: コメント登録 (案②) ---
+# --- 機能: コメント登録 ---
 def register_feedback(content):
     db = get_db()
     try:
@@ -100,6 +98,12 @@ def register_feedback(content):
         print(f"Error registering feedback: {e}")
         return False
 
+# ★ 新規機能: コメント一覧取得 ★
+def get_all_feedbacks():
+    db = get_db()
+    # 最新のコメントを上に表示
+    return db.execute('SELECT id, content, created_at FROM feedbacks ORDER BY created_at DESC').fetchall()
+
 # --- ルーティング ---
 
 @app.route('/', methods=['GET', 'POST'])
@@ -108,6 +112,7 @@ def index():
     survivors = db.execute('SELECT id, display_name FROM m_survivors ORDER BY id').fetchall()
     hunters = db.execute('SELECT id, display_name FROM m_hunters ORDER BY id').fetchall()
     
+    # ... (予測ロジックは省略) ...
     prediction_result = []
     total_samples = 0
     selected_bans = ['', '', '', '']
@@ -142,7 +147,7 @@ def index():
                            selected=selected_bans,
                            message=message)
 
-# 統計ページ (案①)
+# 統計ページ
 @app.route('/stats')
 def stats():
     db = get_db()
@@ -157,7 +162,36 @@ def stats():
     hunters = db.execute('SELECT id, display_name FROM m_hunters ORDER BY id').fetchall()
     return render_template('stats.html', hunters=hunters, stats_data=stats_data, current_hunter=current_hunter)
 
+# ★ 新規ルーティング: 管理者ログインとコメント一覧 ★
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == "watashiha":
+            # 認証成功したらコメント一覧へリダイレクト
+            return redirect(url_for('view_feedbacks'))
+        else:
+            message = "パスワードが間違っています。"
+    else:
+        message = None
+        
+    return render_template('admin_login.html', message=message)
+
+
+@app.route('/admin/feedbacks')
+def view_feedbacks():
+    # 簡易認証チェック (セッション管理は行っていないため、URL直打ち防止のみ)
+    # NOTE: 本格的なアプリではセッション管理が必要です
+    if request.referrer and 'admin' in request.referrer:
+        feedbacks = get_all_feedbacks()
+        return render_template('feedbacks.html', feedbacks=feedbacks)
+    else:
+        # パスワード入力ページを経由していない場合はアクセス拒否
+        return redirect(url_for('admin_login'))
+
 if __name__ == '__main__':
+    # Web公開時はgunicornが起動するため、ここは使いません
     if not os.path.exists(DB_PATH):
         print("Warning: Run init_master.py first to create the database.")
-        pass
+    # app.run(debug=True)
