@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ハンター別統計</title>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; padding: 20px; text-align: center; }
+        h1 { color: #64b5f6; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .hunter-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 30px; }
+        .hunter-tag { text-decoration: none; color: #fff; background: #333; padding: 8px 12px; border-radius: 20px; font-size: 0.9rem; }
+        .hunter-tag:hover { background: #64b5f6; color: #000; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #1e1e1e; }
+        th, td { padding: 12px; border-bottom: 1px solid #333; text-align: left; }
+        th { color: #64b5f6; }
+        .back-link { display: block; margin-top: 30px; color: #757575; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 ハンター別 BAN傾向</h1>
+        <p>調べたいハンターを選んでください</p>
+
+        <div class="hunter-list">
+            {% for h in hunters %}
+                <a href="{{ url_for('stats', hunter_id=h['id']) }}" class="hunter-tag">{{ h['display_name'] }}</a>
+            {% endfor %}
+        </div>
+
+        {% if current_hunter %}
+            <h2 style="margin-top:40px; border-left:5px solid #64b5f6; padding-left:15px; text-align:left;">
+                {{ current_hunter['display_name'] }} のBAN傾向 (TOP10)
+            </h2>
+            
+            {% if stats_data %}
+                <table>
+                    <tr>
+                        <th>順位</th>
+                        <th>サバイバー</th>
+                        <th>BAN回数</th>
+                    </tr>
+                    {% for row in stats_data %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ row['display_name'] }}</td>
+                        <td>{{ row['count'] }}回</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p style="color:#777; margin-top:20px;">まだデータがありません。</p>
+            {% endif %}
+        {% endif %}
+
+        <a href="{{ url_for('index') }}" class="back-link">← 予測ツールに戻る</a>
+    </div>
+</body>
+</html>

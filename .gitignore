@@ -1,0 +1,8 @@
+# Python仮想環境とデータベースはアップロードしない
+venv/
+__pycache__/
+*.pyc
+*.db
+
+# データベースファイル自体を無視
+idv_master.db

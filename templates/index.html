@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IDV Hunter Predictor</title>
+    <style>
+        /* CSSは変更ありません。見やすさのための調整のみ */
+        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; margin: 0; padding: 20px; text-align: center; }
+        h1 { color: #ff5252; font-size: 1.5rem; margin-bottom: 5px; text-shadow: 0 0 10px rgba(255, 82, 82, 0.5); }
+        .container { max-width: 500px; margin: 0 auto; }
+        select { width: 100%; padding: 12px; font-size: 1rem; background-color: #1e1e1e; color: #fff; border: 1px solid #333; border-radius: 8px; appearance: none; text-align: center; margin-bottom: 10px; }
+        option { background-color: #ffffff; color: #000000; }
+        .btn { width: 100%; padding: 15px; font-size: 1.2rem; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; }
+        .btn-predict { background: linear-gradient(45deg, #d32f2f, #ff5252); color: white; margin-bottom: 20px; }
+        .result-area { background-color: #1e1e1e; border-radius: 12px; padding: 20px; margin-bottom: 30px; border: 1px solid #333; }
+        .warning-box { background-color: #ff9800; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 0.9rem; font-weight: bold; }
+        .hunter-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; }
+        .message-box { background-color: #333; color: #fff; padding: 10px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #2e7d32; }
+        .link-stats { display: inline-block; margin-top: 10px; color: #64b5f6; text-decoration: none; border-bottom: 1px dashed #64b5f6; }
+        .footer-area { margin-top: 50px; border-top: 1px solid #333; padding-top: 20px; }
+        textarea { width: 100%; height: 60px; background: #1e1e1e; color: #fff; border: 1px solid #333; border-radius: 5px; padding: 10px; box-sizing: border-box; }
+        .btn-feedback { background-color: #555; color: white; padding: 8px; font-size: 0.9rem; border-radius: 5px; margin-top: 5px; width: 100%; }
+
+        /* 新規追加セクションのスタイル */
+        .info-section { 
+            background: #1e1e1e; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 30px;
+            text-align: left;
+            border: 1px solid #2c2c2c;
+        }
+        .info-section h2 { 
+            font-size: 1.1rem; 
+            color: #64b5f6; 
+            border-bottom: 1px dashed #333; 
+            padding-bottom: 5px; 
+            margin-top: 0; 
+        }
+        .info-section p { 
+            font-size: 0.85rem; 
+            line-height: 1.5; 
+            color: #b0b0b0; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>IDV PREDICTOR</h1>
+        <p style="color:#757575; font-size:0.8rem;">みんなで作るハンター予測AI</p>
+
+        <div class="info-section">
+            <h2>📢 開発者よりお願い</h2>
+            <p>
+                このツールは、皆さんが登録した試合データをもとに予測を行うAIです。  
+                データが少ないと予測精度が上がりません。ぜひ、試合後に「登録する」ボタンでご協力をお願いします！
+            </p>
+            <p style="color: #ff5252; font-weight: bold; margin-top: 10px;">
+                🚨 悪質なデータ登録（嘘の情報など）は、予測精度を大きく下げるため絶対におやめください。
+            </p>
+            <p style="margin-top: 10px; border-top: 1px dashed #333; padding-top: 10px;">
+                開発途中につき、バグや使いにくい点があれば、一番下のご意見箱にご記入をお願いします！
+            </p>
+        </div>
+
+        <div class="info-section">
+            <h2>💡 予測の計算方法 (仕組み)</h2>
+            <p>
+                あなたがBANを選択すると、システムがデータベースに保存されている
+                「過去、同じサバイバーがBANされたデータ」 をすべて探し出します。
+                そして、それらの試合で「どのハンターが最も多く出現したか」を統計的に計算し、出現回数が多い順にランキングとして表示しています。
+            </p>
+        </div>
+        {% if message %}
+            <div class="message-box">{{ message }}</div>
+        {% endif %}
+
+        <form method="POST">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                {% for i in range(4) %}
+                    <select name="ban{{ i+1 }}">
+                        <option value="">BAN {{ i+1 }}</option>
+                        {% for s in survivors %}
+                            <option value="{{ s['id'] }}" {% if selected[i] == s['id']|string %}selected{% endif %}>{{ s['display_name'] }}</option>
+                        {% endfor %}
+                    </select>
+                {% endfor %}
+            </div>
+
+            <button type="submit" name="action" value="predict" class="btn btn-predict">🔮 予測する</button>
+
+            {% if result %}
+                <div class="result-area">
+                    {% if total_samples < 10 %}
+                        <div class="warning-box">
+                            ⚠️ データがまだ少ないです ({{ total_samples }}件)<br>
+                            予測精度が低い可能性があります。
+                        </div>
+                    {% endif %}
+
+                    <div style="color:#ff5252; margin-bottom:10px; font-weight:bold;">予測結果</div>
+                    {% for row in result %}
+                    <div class="hunter-row">
+                        <span>{{ loop.index }}位: {{ row['display_name'] }}</span>
+                        <span style="color:#888;">{{ row['count'] }}件</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% elif selected[0] or selected[1] %}
+                <p style="color:#777; font-size:0.9rem;">
+                    該当するデータがありません。<br>
+                    試合後に結果を登録して、データを育てましょう！
+                </p>
+            {% endif %}
+
+            <div style="border-top:1px dashed #444; padding-top:20px;">
+                <p style="font-size:0.9rem;">試合結果を登録 (AI学習)</p>
+                <select name="actual_hunter">
+                    <option value="">実際に来たハンター</option>
+                    {% for h in hunters %}
+                        <option value="{{ h['id'] }}">{{ h['display_name'] }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="action" value="register" class="btn" style="background:#2e7d32; font-size:1rem; padding:10px;">📝 登録する</button>
+            </div>
+        </form>
+
+        <div style="margin-top: 30px;">
+            <a href="{{ url_for('stats') }}" class="link-stats">📊 ハンター別のBAN傾向を見る</a>
+        </div>
+
+        <div class="footer-area">
+            <p style="font-size:0.8rem; color:#757575;">開発者へのメッセージ・要望</p>
+            <form method="POST">
+                <textarea name="content" placeholder="ここを直してほしい！など"></textarea>
+                <button type="submit" name="action" value="feedback" class="btn-feedback">送信</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
